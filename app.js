@@ -4,9 +4,9 @@ const express = require("express");
 const ejs = require("ejs");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
-const md5 = require("md5");
-const bcrypt = require("bcrypt");
-const saltRounds = 10;
+const session = require("express-session");
+const passport = require("passport");
+const passportLocalMongoose = require("passport-local-mongoose");
 
 app = express();
 app.use(bodyParser.urlencoded({
@@ -15,6 +15,15 @@ app.use(bodyParser.urlencoded({
 app.use(express.static("public"));
 app.set('view engine', 'ejs');
 
+// express-session
+app.use(session({
+  secret: 'Some little secrets',
+  resave: false,
+  saveUninitialized: false,
+}))
+
+app.use(passport.initialize());
+app.use(passport.session());
 
 // mongoose
 const url = "mongodb://localhost:27017";
@@ -30,15 +39,18 @@ const userSchema = new mongoose.Schema({
   password: String
 });
 
-
-
 const User = mongoose.model("User", userSchema);
 
-//const user = new User({
-//  email: "123@123.com",
-//  password: "yeh"
-//})
-//user.save();
+userSchema.plugin(passportLocalMongoose);
+passport.serializeUser(function(user, done) {
+  done(null, user.id);
+});
+
+passport.deserializeUser(function(id, done) {
+  User.findById(id, function (err, user) {
+    done(err, user);
+  });
+});
 
 app.get("/", (req, res) => {
   res.render("home");
@@ -51,64 +63,11 @@ app.get("/login", (req, res) => {
 })
 
 app.post("/register", (req, res) => {
-  const email = req.body.username;
-  const salt = bcrypt.genSaltSync(saltRounds);
-  const password = bcrypt.hashSync(req.body.password, salt);
 
-  User.findOne({
-    email: email
-  }, (err, foundUser) => {
-    if (err) {
-      console.log(err);
-    } else {
-      if (foundUser) {
-        if (foundUser.password === password) {
-          res.render("secrets")
-        } else {
-          console.log("The email already exists but with wrong password");
-          res.redirect("/register");
-        }
-      } else {
-        const user = new User({
-          email: email,
-          password: password
-        });
-        user.save((err) => {
-          if (!err) {
-            console.log("Update successfully");
-            res.render("secrets");
-          } else {
-            console.log(err);
-          }
-        });
-      }
-    }
-  });
 });
 
 app.post("/login", (req, res) => {
-  const email = req.body.username;
-  const password = req.body.password;
 
-  User.findOne({email: email}, (err, foundUser) => {
-    if (err) {
-      console.log(err);
-    } else {
-      if (foundUser) {
-        bcrypt.compare(password, foundUser.password, (err, result) => {
-          if (result === true) {
-            res.render("secrets")
-          } else {
-            console.log("The email already exists but with wrong password");
-            res.redirect("/login");
-          }
-        });
-      } else {
-        console.log("No user id found");
-        res.redirect("/login");
-      }
-    }
-  });
 })
 
 app.listen("3000", () => {
