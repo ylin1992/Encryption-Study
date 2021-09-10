@@ -8,7 +8,7 @@ const session = require("express-session");
 const passport = require("passport");
 const passportLocalMongoose = require("passport-local-mongoose");
 
-app = express();
+const app = express();
 app.use(bodyParser.urlencoded({
   extended: true
 }));
@@ -17,10 +17,10 @@ app.set('view engine', 'ejs');
 
 // express-session
 app.use(session({
-  secret: 'Some little secrets',
+  secret: "Our little secret.",
   resave: false,
-  saveUninitialized: false,
-}))
+  saveUninitialized: false
+}));
 
 app.use(passport.initialize());
 app.use(passport.session());
@@ -33,15 +33,17 @@ mongoose.connect(url + "/" + dbName, {
 }, () => {
   console.log("Database connected");
 });
+//mongoose.set("useCreateIndex", true);
 
 const userSchema = new mongoose.Schema({
   email: String,
   password: String
 });
 
-const User = mongoose.model("User", userSchema);
+const User = new mongoose.model("User", userSchema);
 
 userSchema.plugin(passportLocalMongoose);
+
 passport.serializeUser(function(user, done) {
   done(null, user.id);
 });
@@ -62,13 +64,53 @@ app.get("/login", (req, res) => {
   res.render("login");
 })
 
-app.post("/register", (req, res) => {
+app.get("/secrets", (req, res) => {
+  if (req.isAuthenticated()) {
+    res.render("secrets");
+  } else {
+    res.redirect("/login");
+  }
+});
+
+app.get("/logout", function(req, res){
+  req.logout();
+  res.redirect("/");
+});
+
+app.post("/register", function(req, res){
+
+  User.register({username: req.body.username}, req.body.password, function(err, user){
+    if (err) {
+      console.log(err);
+      res.redirect("/register");
+    } else {
+      passport.authenticate("local")(req, res, function(){
+        res.redirect("/secrets");
+      });
+    }
+  });
 
 });
 
-app.post("/login", (req, res) => {
+app.post("/login", function(req, res){
 
-})
+  const user = new User({
+    username: req.body.username,
+    password: req.body.password
+  });
+
+  req.login(user, function(err){
+    if (err) {
+      console.log(err);
+    } else {
+      passport.authenticate("local")(req, res, function(){
+        res.redirect("/secrets");
+      });
+    }
+  });
+
+});
+
 
 app.listen("3000", () => {
   console.log("Server connected at port: 3000");
