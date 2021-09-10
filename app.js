@@ -5,10 +5,13 @@ const ejs = require("ejs");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
 const md5 = require("md5");
-
+const bcrypt = require("bcrypt");
+const saltRounds = 10;
 
 app = express();
-app.use(bodyParser.urlencoded({extended: true}));
+app.use(bodyParser.urlencoded({
+  extended: true
+}));
 app.use(express.static("public"));
 app.set('view engine', 'ejs');
 
@@ -16,7 +19,9 @@ app.set('view engine', 'ejs');
 // mongoose
 const url = "mongodb://localhost:27017";
 const dbName = "userDB";
-mongoose.connect(url + "/" + dbName, {useNewUrlParser: true} ,() => {
+mongoose.connect(url + "/" + dbName, {
+  useNewUrlParser: true
+}, () => {
   console.log("Database connected");
 });
 
@@ -47,10 +52,12 @@ app.get("/login", (req, res) => {
 
 app.post("/register", (req, res) => {
   const email = req.body.username;
-  const password = md5(req.body.password);
-  console.log(email, password);
+  const salt = bcrypt.genSaltSync(saltRounds);
+  const password = bcrypt.hashSync(req.body.password, salt);
 
-  User.findOne({email: email} , (err, foundUser) => {
+  User.findOne({
+    email: email
+  }, (err, foundUser) => {
     if (err) {
       console.log(err);
     } else {
@@ -66,7 +73,7 @@ app.post("/register", (req, res) => {
           email: email,
           password: password
         });
-        user.save( (err)=> {
+        user.save((err) => {
           if (!err) {
             console.log("Update successfully");
             res.render("secrets");
@@ -81,23 +88,24 @@ app.post("/register", (req, res) => {
 
 app.post("/login", (req, res) => {
   const email = req.body.username;
-  const password = md5(req.body.password);
-  console.log(email, password);
+  const password = req.body.password;
 
-  User.findOne({email: email} , (err, foundUser) => {
+  User.findOne({email: email}, (err, foundUser) => {
     if (err) {
       console.log(err);
     } else {
       if (foundUser) {
-        if (foundUser.password === password) {
-          res.render("secrets")
-        } else {
-          console.log("The email already exists but with wrong password");
-          res.redirect("/login");
-        }
+        bcrypt.compare(password, foundUser.password, (err, result) => {
+          if (result === true) {
+            res.render("secrets")
+          } else {
+            console.log("The email already exists but with wrong password");
+            res.redirect("/login");
+          }
+        });
       } else {
-          console.log("No user id found");
-          res.redirect("/login");
+        console.log("No user id found");
+        res.redirect("/login");
       }
     }
   });
